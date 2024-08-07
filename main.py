@@ -1,7 +1,10 @@
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.metrics import classification_report, confusion_matrix
+import seaborn as sns
 
 # Load and preprocess data
 (train_images, train_labels), (test_images, test_labels) = datasets.cifar10.load_data()
@@ -10,31 +13,27 @@ train_images, test_images = train_images / 255.0, test_images / 255.0
 # Define class names for CIFAR-10 dataset
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
-# Build the Convolutional Neural Network (CNN)
+# Data augmentation
+datagen = ImageDataGenerator(
+    rotation_range=20,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    horizontal_flip=True,
+)
+datagen.fit(train_images)
+
+# Enhanced model architecture
 model = models.Sequential()
-
-# Add the first convolutional layer with 32 filters, 3x3 kernel size, and ReLU activation
 model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
-
-# Add the first max pooling layer with 2x2 pool size
 model.add(layers.MaxPooling2D((2, 2)))
-
-# Add the second convolutional layer with 64 filters, 3x3 kernel size, and ReLU activation
 model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-
-# Add the second max pooling layer with 2x2 pool size
 model.add(layers.MaxPooling2D((2, 2)))
-
-# Add the third convolutional layer with 64 filters, 3x3 kernel size, and ReLU activation
-model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-
-# Flatten the output from the convolutional layers
+model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
+model.add(layers.Conv2D(128, (3, 3), activation='relu'))
+model.add(layers.MaxPooling2D((2, 2)))
 model.add(layers.Flatten())
-
-# Add a dense (fully connected) layer with 64 units and ReLU activation
-model.add(layers.Dense(64, activation='relu'))
-
-# Add the output layer with 10 units (one for each class)
+model.add(layers.Dense(512, activation='relu'))
 model.add(layers.Dense(10))
 
 # Compile the model
@@ -42,8 +41,9 @@ model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
               metrics=['accuracy'])
 
-# Train the model
-history = model.fit(train_images, train_labels, epochs=10,
+# Train the model with data augmentation
+history = model.fit(datagen.flow(train_images, train_labels, batch_size=64),
+                    epochs=50,
                     validation_data=(test_images, test_labels))
 
 # Evaluate the model
@@ -74,46 +74,22 @@ plt.title('Training and Validation Loss')
 
 plt.show()
 
-
-# Function to plot images with predictions
-def plot_image(predictions_array, true_label, img):
-    plt.grid(False)
-    plt.xticks([])
-    plt.yticks([])
-
-    plt.imshow(img, cmap=plt.cm.binary)
-
-    predicted_label = np.argmax(predictions_array)
-    if predicted_label == true_label:
-        color = 'blue'
-    else:
-        color = 'red'
-
-    plt.xlabel(f"{class_names[predicted_label]} ({class_names[true_label[0]]})", color=color)
-
-
-def plot_value_array(predictions_array, true_label):
-    plt.grid(False)
-    plt.xticks(range(10))
-    plt.yticks([])
-    thisplot = plt.bar(range(10), predictions_array, color="#777777")
-    plt.ylim([0, 1])
-    predicted_label = np.argmax(predictions_array)
-
-    thisplot[predicted_label].set_color('red')
-    thisplot[true_label[0]].set_color('blue')
-
-
 # Predict the test images
-probability_model = models.Sequential([model, layers.Softmax()])
-predictions = probability_model.predict(test_images)
+y_pred = np.argmax(model.predict(test_images), axis=1)
 
-# Plot the first 15 test images, their predicted labels, and the true labels
-plt.figure(figsize=(15, 15))
-for i in range(15):
-    plt.subplot(5, 6, 2 * i + 1)
-    plot_image(predictions[i], test_labels[i], test_images[i])
-    plt.subplot(5, 6, 2 * i + 2)
-    plot_value_array(predictions[i], test_labels[i])
-plt.tight_layout()
+# Compute and plot the confusion matrix
+conf_matrix = confusion_matrix(test_labels, y_pred)
+plt.figure(figsize=(10, 8))
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', xticklabels=class_names, yticklabels=class_names)
+plt.xlabel('Predicted Label')
+plt.ylabel('True Label')
+plt.title('Confusion Matrix')
 plt.show()
+
+# Print classification report
+print(classification_report(test_labels, y_pred, target_names=class_names))
+
+model.save('cifar10_model.h5')
+# Load the model from disk
+loaded_model = tf.keras.models.load_model('cifar10_model.h5')
+loaded_model.evaluate(test_images, test_labels, verbose=2)
