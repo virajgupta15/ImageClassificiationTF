@@ -24,11 +24,10 @@ datagen.fit(train_images)
 
 # Enhanced model architecture
 model = models.Sequential()
-model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)))
+model.add(layers.InputLayer(input_shape=(32, 32, 3)))
+model.add(layers.Conv2D(32, (3, 3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
 model.add(layers.Conv2D(64, (3, 3), activation='relu'))
-model.add(layers.MaxPooling2D((2, 2)))
-model.add(layers.Conv2D(128, (3, 3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
 model.add(layers.Conv2D(128, (3, 3), activation='relu'))
 model.add(layers.MaxPooling2D((2, 2)))
@@ -89,7 +88,11 @@ plt.show()
 # Print classification report
 print(classification_report(test_labels, y_pred, target_names=class_names))
 
+# Save the model to disk
 model.save('cifar10_model.h5')
+
 # Load the model from disk
 loaded_model = tf.keras.models.load_model('cifar10_model.h5')
+
+# Verify the loaded model
 loaded_model.evaluate(test_images, test_labels, verbose=2)
